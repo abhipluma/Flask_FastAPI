@@ -171,16 +171,34 @@ def get_progress_data(client):
     }
 
 
-@app.get("/client-metrics/active/{group_id}/")
-def client_metrics(group_id:int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    db_clients = db.query(Client, ClientGroup, AuthUser).\
-    filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id).\
-    filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False, Client.group_id==group_id).offset(skip).limit(limit).all()
+@app.get("/client-metrics/{status}/{group_id}/")
+def client_metrics(status:str, group_id:str, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    db_clients = db.query(Client, ClientGroup, AuthUser). \
+        filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id). \
+        filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False)
+
+    if group_id != 'all':
+        db_clients = db_clients.filter(Client.group_id == int(group_id))
+
+    if status == 'active':
+        db_clients = db_clients.filter(Client.inactive_flag == False, Client.paused_flag == False,
+                Client.engagement_complete == False, Client.is_deactivated == False).offset(skip).limit(limit).all()
+    elif status == 'paused':
+        db_clients = db_clients.filter((Client.inactive_flag == True) | (Client.paused_flag == True)).filter(
+                                        Client.is_deactivated == False).offset(skip).limit(limit).all()
+    elif status == 'completed':
+        db_clients = db_clients.filter(Client.engagement_complete == True).offset(skip).limit(limit).all()
+    elif status == 'deactivated':
+        db_clients = db_clients.filter(Client.is_deactivated == True).offset(skip).limit(limit).all()
+    else:
+        db_clients = db_clients.offset(skip).limit(limit).all()
+
     data = []
     for db_client in db_clients:
         client, group, user = db_client
         progress_data = get_progress_data(client)
         data.append({
+            "id": client.id,
             "client_name": "%s %s"%(client.firstName, client.lastName),
             "client_email": client.email,
             "group": group.display_name,
