@@ -2,11 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, get_db
 from sqlalchemy.orm import Session
-from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping, NumberofPeopleReporting, Country, Language
+from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping, NumberofPeopleReporting, Country, Language, ClientExtraInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 import models
 from sqlalchemy import distinct, func, desc, or_
 models.Base.metadata.create_all(bind=engine)
+from datetime import datetime
+import pytz
 
 app = FastAPI(title="Enterprise App",description="API Doc")#,docs_url=None, redoc_url=None)
 
@@ -125,6 +127,48 @@ def read_users(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
         response_data = {'menus': [engagement_stats, assessment_stats, survey_stats, internal_coaches]}
     return response_data
 
+def convert_to_timezone_with_offset(date_val: datetime, tz: str, converted: bool = False, isoformat: bool = True, no_offset: bool = True):
+    """
+    Converting tz-aware datetime object to local tz string with offset
+    Args:
+        date: tz-aware datetime object
+        tz:   local timezone
+    Returns: local naive datetime string with offset
+    """
+    try:
+        date_val = datetime.strptime(date_val, '%Y-%m-%dT%H:%M:%S.%f%z')
+        if not isinstance(date_val, datetime) and type(date_val) is not str:
+            date_val = datetime.combine(date_val, datetime.min.time())
+
+        if converted:
+            res = date_val.replace(tzinfo=pytz.timezone(tz))
+        else:
+            res = date_val.astimezone(pytz.timezone(tz))
+
+        if isoformat:
+            if no_offset:
+                res = res.replace(tzinfo=None)
+            return res.isoformat()
+        return res
+    except Exception as e:
+        print('%s: (%s)' % (type(e), e))
+
+
+def get_progress_data(client):
+    logged_in_time = None
+    flag_data = client.client_extra_info.first().data
+    print(flag_data.get("first_time_password_change"))
+    first_time_password_change = flag_data.get("first_time_password_change")
+    if first_time_password_change.get("completed") and \
+            first_time_password_change.get("completed_on"):
+        logged_in_time = convert_to_timezone_with_offset(first_time_password_change.get("completed_on"),
+                                            'America/Los_Angeles', isoformat=False)
+    print(logged_in_time)
+    return {
+        "logged_in": first_time_password_change.get("completed"),
+        "logged_in_time": logged_in_time.strftime('%m/%d/%Y') if logged_in_time else None,
+        'changed_coach': flag_data["coach_changed"]["completed"]
+    }
 
 
 @app.get("/client-metrics/{status}/{group_id}/")
@@ -152,6 +196,7 @@ def client_metrics(status:str, group_id:str, skip: int = 0, limit: int = 10, db:
     data = []
     for db_client in db_clients:
         client, group, user = db_client
+        progress_data = get_progress_data(client)
         data.append({
             "id": client.id,
             "client_name": "%s %s"%(client.firstName, client.lastName),
@@ -168,10 +213,12 @@ def client_metrics(status:str, group_id:str, skip: int = 0, limit: int = 10, db:
             "number_of_people_reporting": client.client_numberofpeoplereporting.option
             if client.client_numberofpeoplereporting else '',
             "country": client.client_country.country if client.client_country else '',
-            "language": client.client_language.language if client.client_language else ''
+            "language": client.client_language.language if client.client_language else '',
+            'manager_call_count': client.client_manager_three_way_call.count()
+            if client.client_manager_three_way_call.first() is not None else '',
+            "progress":progress_data
         })
     return data
 
 
 # progress = serializers.SerializerMethodField()
-# manager_call_count = serializers.SerializerMethodField()
