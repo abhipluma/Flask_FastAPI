@@ -61,14 +61,14 @@ class Client(db.Model):
     # functional_areas_id = db.Column(db.Integer)
     # areas_of_expertise_id = db.Column(db.Integer)
     # languages_id = db.Column(db.Integer)
-    preferred_language_id = db.Column(db.Integer, nullable=True)
+    preferred_language_id = db.Column(db.Integer, db.ForeignKey('coach_onboarding_language.id'))
     assignedCoach_id = db.Column(db.Integer, nullable=True)
     assigned_csm_id = db.Column(db.Integer, nullable=True)
     firstName = db.Column(db.String, )
     lastName = db.Column(db.String, )
     city = db.Column(db.String,  nullable=True)
     state = db.Column(db.String,  nullable=True)
-    country_id = db.Column(db.Integer, nullable=True,)
+    country_id = db.Column(db.Integer, db.ForeignKey('coach_onboarding_country.id'))
     zipCode = db.Column(db.String,  nullable=True)
     gender = db.Column(db.String, nullable=True)
     age = db.Column(db.String,  nullable=True)
@@ -82,7 +82,7 @@ class Client(db.Model):
     linkedin_info_pdf = db.Column(db.String, nullable=True)
     linkedin_public_profile_url = db.Column(db.String, nullable=True)
     title_id = db.Column(db.Integer, nullable=True,)
-    number_of_people_reporting_id = db.Column(db.Integer, nullable=True)
+    number_of_people_reporting_id = db.Column(db.Integer, db.ForeignKey('client_onboarding_numberofpeoplereporting.id'))
     number_of_people_interacting_id = db.Column(db.Integer, nullable=True)
     push_notification_device_token = db.Column(db.String, nullable=True)
     allow_push_notification_and_disable_email = db.Column(db.Boolean, default=False)
@@ -133,7 +133,14 @@ class Client(db.Model):
 
     client_group = db.relationship("ClientGroup", foreign_keys=[group_id],back_populates="client_group")
     client_user = db.relationship("AuthUser", foreign_keys=[user_id],back_populates="client_user")
+    client_numberofpeoplereporting = db.relationship("NumberofPeopleReporting", 
+    foreign_keys=[number_of_people_reporting_id],back_populates="client_numberofpeoplereporting")
 
+    client_country = db.relationship("Country", 
+    foreign_keys=[country_id],back_populates="client_country")
+
+    client_language = db.relationship("Language", 
+    foreign_keys=[preferred_language_id],back_populates="client_language")
 
 class ClientGroup(db.Model):
     __tablename__ = 'client_onboarding_clientgroup'
@@ -166,6 +173,30 @@ class HRPartnerMapping(db.Model):
     hr_first_name = db.Column(db.String)
     hr_last_name = db.Column(db.String)
 
+class NumberofPeopleReporting(db.Model):
+    __tablename__ = 'client_onboarding_numberofpeoplereporting'
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    option = db.Column(db.String)
+
+    client_numberofpeoplereporting = db.relationship("Client", lazy='dynamic', 
+    foreign_keys='Client.number_of_people_reporting_id', back_populates="client_numberofpeoplereporting")
+
+class Country(db.Model):
+    __tablename__ = 'coach_onboarding_country'
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    country = db.Column(db.String)
+
+    client_country = db.relationship("Client", lazy='dynamic', 
+    foreign_keys='Client.country_id', back_populates="client_country")
+
+class Language(db.Model):
+    __tablename__ = 'coach_onboarding_language'
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    language = db.Column(db.String)
+
+    client_language = db.relationship("Client", lazy='dynamic', 
+    foreign_keys='Client.preferred_language_id', back_populates="client_language")
+
 @app.route("/user")
 def get_user():
    users = AuthUser.query.limit(10).all()
@@ -194,7 +225,11 @@ def client_metrics(group_id):
             if db.session.query(Notes).filter( Notes.client_id==client.id).first() else '',
             "hr_partner": db.session.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first().hr_first_name
             + ' ' + db.session.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first().hr_last_name
-            if db.session.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first() else ''
+            if db.session.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first() else '',
+            "number_of_people_reporting": client.client_numberofpeoplereporting.option
+            if client.client_numberofpeoplereporting else '',
+            "country": client.client_country.country if client.client_country else '',
+            "language": client.client_language.language if client.client_language else ''
         })
     return make_response(jsonify(data))
 

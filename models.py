@@ -40,14 +40,14 @@ class Client(Base):
     # functional_areas_id = Column(Integer)
     # areas_of_expertise_id = Column(Integer)
     # languages_id = Column(Integer)
-    preferred_language_id = Column(Integer, nullable=True)
+    preferred_language_id = Column(Integer, ForeignKey('coach_onboarding_language.id'))
     assignedCoach_id = Column(Integer, nullable=True)
     assigned_csm_id = Column(Integer, nullable=True)
     firstName = Column(String, )
     lastName = Column(String, )
     city = Column(String,  nullable=True)
     state = Column(String,  nullable=True)
-    country_id = Column(Integer, nullable=True,)
+    country_id = Column(Integer, ForeignKey('coach_onboarding_country.id'))
     zipCode = Column(String,  nullable=True)
     gender = Column(String, nullable=True)
     age = Column(String,  nullable=True)
@@ -61,7 +61,7 @@ class Client(Base):
     linkedin_info_pdf = Column(String, nullable=True)
     linkedin_public_profile_url = Column(String, nullable=True)
     title_id = Column(Integer, nullable=True,)
-    number_of_people_reporting_id = Column(Integer, nullable=True)
+    number_of_people_reporting_id = Column(Integer, ForeignKey('client_onboarding_numberofpeoplereporting.id'))
     number_of_people_interacting_id = Column(Integer, nullable=True)
     push_notification_device_token = Column(String, nullable=True)
     allow_push_notification_and_disable_email = Column(Boolean, default=False)
@@ -83,7 +83,7 @@ class Client(Base):
     show_conference_call_feedback = Column(Boolean, default=False)
     timezone = Column(String, nullable=True, default="America/Los_Angeles")
     plan = Column(String,  nullable=True)
-    company_id = Column(Integer)
+    company_id = Column(Integer, nullable=True,)
     has_materials = Column(Boolean, default=False, )
     client_manager_exercise_slug = Column(String, nullable=True,)
     show_reassessment_by_csm = Column(Boolean, default=False,)
@@ -112,6 +112,14 @@ class Client(Base):
 
     client_group = relationship("ClientGroup", foreign_keys=[group_id],back_populates="client_group")
     client_user = relationship("AuthUser", foreign_keys=[user_id],back_populates="client_user")
+    client_numberofpeoplereporting = relationship("NumberofPeopleReporting", 
+    foreign_keys=[number_of_people_reporting_id],back_populates="client_numberofpeoplereporting")
+
+    client_country = relationship("Country", 
+    foreign_keys=[country_id],back_populates="client_country")
+
+    client_language = relationship("Language", 
+    foreign_keys=[preferred_language_id],back_populates="client_language")
 
 
 class ClientGroup(Base):
@@ -144,3 +152,27 @@ class HRPartnerMapping(Base):
     client_id = Column(Integer)
     hr_first_name = Column(String)
     hr_last_name = Column(String)
+
+class NumberofPeopleReporting(Base):
+    __tablename__ = 'client_onboarding_numberofpeoplereporting'
+    id = Column(Integer, primary_key=True, index=True)
+    option = Column(String)
+
+    client_numberofpeoplereporting = relationship("Client", lazy='dynamic', 
+    foreign_keys='Client.number_of_people_reporting_id', back_populates="client_numberofpeoplereporting")
+
+class Country(Base):
+    __tablename__ = 'coach_onboarding_country'
+    id = Column(Integer, primary_key=True, index=True)
+    country = Column(String)
+
+    client_country = relationship("Client", lazy='dynamic', 
+    foreign_keys='Client.country_id', back_populates="client_country")
+
+class Language(Base):
+    __tablename__ = 'coach_onboarding_language'
+    id = Column(Integer, primary_key=True, index=True)
+    language = Column(String)
+
+    client_language = relationship("Client", lazy='dynamic', 
+    foreign_keys='Client.preferred_language_id', back_populates="client_language")

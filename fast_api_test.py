@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, get_db
 from sqlalchemy.orm import Session
-from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping
+from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping, NumberofPeopleReporting, Country, Language
 from fastapi import APIRouter, Depends, HTTPException, status
 import models
 from sqlalchemy import distinct, func, desc, or_
@@ -146,14 +146,14 @@ def client_metrics(group_id:int, skip: int = 0, limit: int = 10, db: Session = D
             if db.query(Notes).filter( Notes.client_id==client.id).first() else '',
             "hr_partner": db.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first().hr_first_name
             + ' ' + db.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first().hr_last_name
-            if db.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first() else ''
+            if db.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first() else '',
+            "number_of_people_reporting": client.client_numberofpeoplereporting.option
+            if client.client_numberofpeoplereporting else '',
+            "country": client.client_country.country if client.client_country else '',
+            "language": client.client_language.language if client.client_language else ''
         })
     return data
 
 
 # progress = serializers.SerializerMethodField()
 # manager_call_count = serializers.SerializerMethodField()
-# hr_partner = serializers.SerializerMethodField()
-# language = serializers.SerializerMethodField()
-# country = serializers.SerializerMethodField()
-# number_of_people_reporting = serializers.SerializerMethodField()
