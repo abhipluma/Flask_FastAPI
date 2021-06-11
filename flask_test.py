@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 # creates Flask object
 app = Flask(__name__)  # Flask app instance initiated
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pluma_dev:pluma_dev@localhost:5432/new_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pluma_dev:pluma_dev@localhost:5432/pluma_local_db1'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 # creates SQLALCHEMY object
 db = SQLAlchemy(app)
@@ -206,15 +206,33 @@ def get_user():
    return make_response(jsonify({'users': user_list}))
 
 
-@app.get("/client-metrics/active/<group_id>/")
-def client_metrics(group_id):
+@app.get("/client-metrics/<status>/<group_id>/")
+def client_metrics(status, group_id):
     db_clients = db.session.query(Client, ClientGroup, AuthUser).\
-    filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id).\
-    filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False, Client.group_id==group_id).limit(10).all()
+        filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id).\
+        filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False)
+
+    if group_id != 'all':
+        db_clients = db_clients.filter(Client.group_id == int(group_id))
+
+    if status == 'active':
+        db_clients = db_clients.filter(Client.inactive_flag == False, Client.paused_flag == False,
+                Client.engagement_complete == False, Client.is_deactivated == False).limit(10).all()
+    elif status == 'paused':
+        db_clients = db_clients.filter((Client.inactive_flag == True) | (Client.paused_flag == True)).filter(
+                                        Client.is_deactivated == False).limit(10).all()
+    elif status == 'completed':
+        db_clients = db_clients.filter(Client.engagement_complete == True).limit(10).all()
+    elif status == 'deactivated':
+        db_clients = db_clients.filter(Client.is_deactivated == True).limit(10).all()
+    else:
+        db_clients = db_clients.limit(10).all()
+
     data = []
     for db_client in db_clients:
         client, group, user = db_client
         data.append({
+            "id": client.id,
             "client_name": "%s %s"%(client.firstName, client.lastName),
             "client_email": client.email,
             "group": group.display_name,
