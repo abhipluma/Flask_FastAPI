@@ -153,6 +153,18 @@ class Coach(db.Model):
     inactive_flag = db.Column(db.Boolean)
     is_external_coach = db.Column(db.Boolean)
 
+class Notes(db.Model):
+    __tablename__ = 'enterprice_dashboard_notes'
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    notes = db.Column(db.String)
+    client_id = db.Column(db.Integer)
+
+class HRPartnerMapping(db.Model):
+    __tablename__ = 'enterprice_dashboard_hrpartnermapping'
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    client_id = db.Column(db.Integer)
+    hr_first_name = db.Column(db.String)
+    hr_last_name = db.Column(db.String)
 
 @app.route("/user")
 def get_user():
@@ -177,7 +189,12 @@ def client_metrics(group_id):
             "group": group.display_name,
             "zip_code": client.zipCode,
             "education": client.highestEducation,
-            "role": client.your_role
+            "role": client.your_role,
+            "notes": db.session.query(Notes).filter( Notes.client_id==client.id).first().notes 
+            if db.session.query(Notes).filter( Notes.client_id==client.id).first() else '',
+            "hr_partner": db.session.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first().hr_first_name
+            + ' ' + db.session.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first().hr_last_name
+            if db.session.query(HRPartnerMapping).filter( HRPartnerMapping.client_id==client.id).first() else ''
         })
     return make_response(jsonify(data))
 
