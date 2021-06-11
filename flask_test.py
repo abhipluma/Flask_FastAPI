@@ -142,6 +142,10 @@ class Client(db.Model):
     client_language = db.relationship("Language", 
     foreign_keys=[preferred_language_id],back_populates="client_language")
 
+    client_manager_three_way_call = db.relationship("ManagerThreeWayCallSession", lazy='dynamic', 
+    foreign_keys='ManagerThreeWayCallSession.client_id', back_populates="client_manager_three_way_call")
+
+
 class ClientGroup(db.Model):
     __tablename__ = 'client_onboarding_clientgroup'
     id = db.Column(db.Integer, primary_key=True, index=True)
@@ -197,6 +201,15 @@ class Language(db.Model):
     client_language = db.relationship("Client", lazy='dynamic', 
     foreign_keys='Client.preferred_language_id', back_populates="client_language")
 
+
+class ManagerThreeWayCallSession(db.Model):
+    __tablename__ = 'chat_managerthreewaycallsession'
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    client_id = db.Column(db.Integer, db.ForeignKey('client_onboarding_client.id'))
+
+    client_manager_three_way_call = db.relationship("Client", 
+    foreign_keys=[client_id],back_populates="client_manager_three_way_call")
+
 @app.route("/user")
 def get_user():
    users = AuthUser.query.limit(10).all()
@@ -229,7 +242,9 @@ def client_metrics(group_id):
             "number_of_people_reporting": client.client_numberofpeoplereporting.option
             if client.client_numberofpeoplereporting else '',
             "country": client.client_country.country if client.client_country else '',
-            "language": client.client_language.language if client.client_language else ''
+            "language": client.client_language.language if client.client_language else '',
+            'manager_call_count': client.client_manager_three_way_call.count()
+            if client.client_manager_three_way_call.first() is not None else ''
         })
     return make_response(jsonify(data))
 

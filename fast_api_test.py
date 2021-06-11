@@ -128,13 +128,14 @@ def read_users(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
 
 
 @app.get("/client-metrics/active/{group_id}/")
-def client_metrics(group_id:int, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+def client_metrics(group_id:int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     db_clients = db.query(Client, ClientGroup, AuthUser).\
     filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id).\
     filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False, Client.group_id==group_id).offset(skip).limit(limit).all()
     data = []
     for db_client in db_clients:
         client, group, user = db_client
+        print(client.client_manager_three_way_call.all())
         data.append({
             "client_name": "%s %s"%(client.firstName, client.lastName),
             "client_email": client.email,
@@ -150,7 +151,9 @@ def client_metrics(group_id:int, skip: int = 0, limit: int = 10, db: Session = D
             "number_of_people_reporting": client.client_numberofpeoplereporting.option
             if client.client_numberofpeoplereporting else '',
             "country": client.client_country.country if client.client_country else '',
-            "language": client.client_language.language if client.client_language else ''
+            "language": client.client_language.language if client.client_language else '',
+            'manager_call_count': client.client_manager_three_way_call.count()
+            if client.client_manager_three_way_call.first() is not None else ''
         })
     return data
 

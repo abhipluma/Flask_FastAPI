@@ -121,6 +121,9 @@ class Client(Base):
     client_language = relationship("Language", 
     foreign_keys=[preferred_language_id],back_populates="client_language")
 
+    client_manager_three_way_call = relationship("ManagerThreeWayCallSession", lazy='dynamic', 
+    foreign_keys='ManagerThreeWayCallSession.client_id', back_populates="client_manager_three_way_call")
+
 
 class ClientGroup(Base):
     __tablename__ = 'client_onboarding_clientgroup'
@@ -176,3 +179,11 @@ class Language(Base):
 
     client_language = relationship("Client", lazy='dynamic', 
     foreign_keys='Client.preferred_language_id', back_populates="client_language")
+
+class ManagerThreeWayCallSession(Base):
+    __tablename__ = 'chat_managerthreewaycallsession'
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+
+    client_manager_three_way_call = relationship("Client", 
+    foreign_keys=[client_id],back_populates="client_manager_three_way_call")
