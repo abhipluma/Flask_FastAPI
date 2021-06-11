@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, Table
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, Table, JSON
 from sqlalchemy.orm import relationship, relation
 import datetime
 
@@ -124,6 +124,9 @@ class Client(Base):
     client_manager_three_way_call = relationship("ManagerThreeWayCallSession", lazy='dynamic', 
     foreign_keys='ManagerThreeWayCallSession.client_id', back_populates="client_manager_three_way_call")
 
+    client_extra_info = relationship("ClientExtraInfo", lazy='dynamic', 
+    foreign_keys='ClientExtraInfo.client_id', back_populates="client_extra_info")
+
 
 class ClientGroup(Base):
     __tablename__ = 'client_onboarding_clientgroup'
@@ -187,3 +190,12 @@ class ManagerThreeWayCallSession(Base):
 
     client_manager_three_way_call = relationship("Client", 
     foreign_keys=[client_id],back_populates="client_manager_three_way_call")
+
+class ClientExtraInfo(Base):
+    __tablename__ = 'client_onboarding_clientextrainfo'
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+    data = Column(JSON)
+
+    client_extra_info = relationship("Client", 
+    foreign_keys=[client_id],back_populates="client_extra_info")
