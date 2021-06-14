@@ -1,5 +1,5 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, Table, JSON
-from sqlalchemy.orm import relationship, relation
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, JSON
+from sqlalchemy.orm import relationship
 import datetime
 
 try:
@@ -131,6 +131,16 @@ class Client(Base):
 
     client_extra_info = relationship("ClientExtraInfo", lazy='dynamic',
                                      foreign_keys='ClientExtraInfo.client_id', back_populates="client_extra_info")
+    focus_area_client = relationship("FocusAreaSkillSelection", foreign_keys='FocusAreaSkillSelection.client_id',
+                                     back_populates="focus_area_client")
+
+    client_engagement_tracker = relationship("EngagementTracker", foreign_keys='EngagementTracker.client_id',
+                                             back_populates="client_engagement_tracker")
+    client_contract_info = relationship("ClientContractInfo", foreign_keys='ClientContractInfo.client_id',
+                                        back_populates="client_contract_info")
+    client_engagement_extend = relationship("EngagementExtendInfo",
+                                            foreign_keys='EngagementExtendInfo.client_id',
+                                            back_populates="client_engagement_extend")
 
 
 class ClientGroup(Base):
@@ -152,6 +162,10 @@ class Coach(Base):
     is_test_account = Column(Boolean)
     inactive_flag = Column(Boolean)
     is_external_coach = Column(Boolean)
+    engagement_tracker_coach = relationship('EngagementTracker', foreign_keys='EngagementTracker.coach_id',
+                                            back_populates="engagement_tracker_coach")
+    engagement_extend_coach = relationship('EngagementExtendInfo', foreign_keys='EngagementExtendInfo.coach_id',
+                                           back_populates="engagement_extend_coach")
 
 
 class Notes(Base):
@@ -238,3 +252,77 @@ class PeopleAnsweringExercise(Base):
     answer_mapper_answered_by = relationship("UserAnswerMapper",
                                              foreign_keys='UserAnswerMapper.answered_by_id',
                                              back_populates="answer_mapper_answered_by")
+
+
+class FocusAreaSkillSelection(Base):
+    __tablename__ = 'client_onboarding_focusareaskillselection'
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+    focus_area_skill_id = Column(Integer, ForeignKey('coach_dashboard_skill.id'))
+
+    focus_area_client = relationship("Client", foreign_keys=[client_id],
+                                        back_populates="focus_area_client")
+    focus_area_skill = relationship("Skill",
+                                       foreign_keys=[focus_area_skill_id],
+                                       back_populates="focus_area_skill")
+
+
+class Skill(Base):
+    __tablename__ = 'coach_dashboard_skill'
+    id = Column(Integer, primary_key=True, index=True)
+    skillName = Column(String)
+    description = Column(String)
+
+    focus_area_skill = relationship("FocusAreaSkillSelection",
+                                       foreign_keys='FocusAreaSkillSelection.focus_area_skill_id',
+                                       back_populates="focus_area_skill")
+
+
+class EngagementTracker(Base):
+    __tablename__ = 'client_onboarding_engagementtracker'
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+    coach_id = Column(Integer, ForeignKey('coach_onboarding_coach.id'))
+    duration = Column(Integer, default=180)
+    start_date = Column(DateTime)
+    end_date = Column(DateTime)
+    total_sessions = Column(Integer, default=12)
+    total_three_way_sessions = Column(Integer, default=0)
+
+    client_engagement_tracker = relationship("Client", foreign_keys=[client_id],
+                                                back_populates="client_engagement_tracker")
+    engagement_tracker_coach = relationship("Coach", foreign_keys=[coach_id],
+                                               back_populates="engagement_tracker_coach")
+
+
+class ClientContractInfo(Base):
+    __tablename__ = 'client_onboarding_clientcontractinfo'
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+    duration = Column(Integer, default=0)
+    duration_in_months = Column(Float, default=0)
+    session_num = Column(Integer, default=0)
+    three_way_session_num = Column(Integer, default=0)
+    session_frequency = Column(Integer, default=0)
+    session_length = Column(Integer, default=0)
+
+    client_contract_info = relationship("Client", foreign_keys=[client_id],
+                                           back_populates="client_contract_info")
+
+
+class EngagementExtendInfo(Base):
+    __tablename__ = 'client_onboarding_engagementextendinfo'
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+    coach_id = Column(Integer, ForeignKey('coach_onboarding_coach.id'))
+    extended_on = Column(DateTime)
+    extended_duration = Column(Integer, default=0)
+    should_extend_sessions = Column(Boolean, default=True)
+    extended_sessions = Column(Integer, default=0)
+    extended_three_way_sessions = Column(Integer, default=0)
+    is_paid = Column(Boolean, default=True)
+
+    client_engagement_extend = relationship("Client", foreign_keys=[client_id],
+                                                back_populates="client_engagement_extend")
+    engagement_extend_coach = relationship("Coach", foreign_keys=[coach_id],
+                                               back_populates="engagement_extend_coach")
