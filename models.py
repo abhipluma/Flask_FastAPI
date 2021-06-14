@@ -134,19 +134,22 @@ class Client(Base):
     focus_area_client = relationship("FocusAreaSkillSelection", foreign_keys='FocusAreaSkillSelection.client_id',
                                      back_populates="focus_area_client")
 
-    client_engagement_tracker = relationship("EngagementTracker", foreign_keys='EngagementTracker.client_id', lazy='dynamic',
+    client_engagement_tracker = relationship("EngagementTracker", foreign_keys='EngagementTracker.client_id',
+                                             lazy='dynamic',
                                              back_populates="client_engagement_tracker")
-    client_contract_info = relationship("ClientContractInfo", foreign_keys='ClientContractInfo.client_id', lazy='dynamic',
+    client_contract_info = relationship("ClientContractInfo", foreign_keys='ClientContractInfo.client_id',
+                                        lazy='dynamic',
                                         back_populates="client_contract_info")
     client_engagement_extend = relationship("EngagementExtendInfo",
                                             foreign_keys='EngagementExtendInfo.client_id', lazy='dynamic',
                                             back_populates="client_engagement_extend")
 
     client_notes = relationship("Notes", foreign_keys='Notes.client_id', lazy='dynamic',
-                                     back_populates="client_notes")
+                                back_populates="client_notes")
 
     hr_partner = relationship("HRPartnerMapping", foreign_keys='HRPartnerMapping.client_id', lazy='dynamic',
-                                     back_populates="hr_partner")
+                              back_populates="hr_partner")
+
 
 class ClientGroup(Base):
     __tablename__ = 'client_onboarding_clientgroup'
@@ -179,7 +182,7 @@ class Notes(Base):
     notes = Column(String)
     client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
     client_notes = relationship("Client",
-                                        foreign_keys=[client_id], back_populates="client_notes")
+                                foreign_keys=[client_id], back_populates="client_notes")
 
 
 class HRPartnerMapping(Base):
@@ -190,7 +193,7 @@ class HRPartnerMapping(Base):
 
     client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
     hr_partner = relationship("Client",
-                                        foreign_keys=[client_id], back_populates="hr_partner")
+                              foreign_keys=[client_id], back_populates="hr_partner")
 
 
 class NumberofPeopleReporting(Base):
@@ -271,10 +274,10 @@ class FocusAreaSkillSelection(Base):
     focus_area_skill_id = Column(Integer, ForeignKey('coach_dashboard_skill.id'))
 
     focus_area_client = relationship("Client", foreign_keys=[client_id],
-                                        back_populates="focus_area_client")
+                                     back_populates="focus_area_client")
     focus_area_skill = relationship("Skill",
-                                       foreign_keys=[focus_area_skill_id],
-                                       back_populates="focus_area_skill")
+                                    foreign_keys=[focus_area_skill_id],
+                                    back_populates="focus_area_skill")
 
 
 class Skill(Base):
@@ -284,8 +287,8 @@ class Skill(Base):
     description = Column(String)
 
     focus_area_skill = relationship("FocusAreaSkillSelection",
-                                       foreign_keys='FocusAreaSkillSelection.focus_area_skill_id',
-                                       back_populates="focus_area_skill")
+                                    foreign_keys='FocusAreaSkillSelection.focus_area_skill_id',
+                                    back_populates="focus_area_skill")
 
 
 class EngagementTracker(Base):
@@ -300,9 +303,9 @@ class EngagementTracker(Base):
     total_three_way_sessions = Column(Integer, default=0)
 
     client_engagement_tracker = relationship("Client", foreign_keys=[client_id],
-                                                back_populates="client_engagement_tracker")
+                                             back_populates="client_engagement_tracker")
     engagement_tracker_coach = relationship("Coach", foreign_keys=[coach_id],
-                                               back_populates="engagement_tracker_coach")
+                                            back_populates="engagement_tracker_coach")
 
 
 class ClientContractInfo(Base):
@@ -316,8 +319,8 @@ class ClientContractInfo(Base):
     session_frequency = Column(Integer, default=0)
     session_length = Column(Integer, default=0)
 
-    client_contract_info = relationship("Client", foreign_keys=[client_id],
-                                           back_populates="client_contract_info")
+    client_contract_info = relationship("Client", foreign_keys=[client_id], uselist=False,
+                                        back_populates="client_contract_info")
 
 
 class EngagementExtendInfo(Base):
@@ -333,6 +336,6 @@ class EngagementExtendInfo(Base):
     is_paid = Column(Boolean, default=True)
 
     client_engagement_extend = relationship("Client", foreign_keys=[client_id],
-                                                back_populates="client_engagement_extend")
+                                            back_populates="client_engagement_extend")
     engagement_extend_coach = relationship("Coach", foreign_keys=[coach_id],
-                                               back_populates="engagement_extend_coach")
+                                           back_populates="engagement_extend_coach")

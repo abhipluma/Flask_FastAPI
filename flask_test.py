@@ -1,11 +1,6 @@
-from flask import Flask, request, jsonify, make_response
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
-import pytz
-import pandas as pd
-from sqlalchemy import desc
 
-from export_column import columns_map
 
 # creates Flask object
 app = Flask(__name__)  # Flask app instance initiated
