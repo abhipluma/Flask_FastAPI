@@ -4,13 +4,17 @@ from database import engine, get_db
 from sqlalchemy.orm import Session
 from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping, NumberofPeopleReporting, Country, \
     Language, ClientExtraInfo
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 import models
 from sqlalchemy import distinct, func, desc, or_, and_
 
 models.Base.metadata.create_all(bind=engine)
 from datetime import datetime
 import pytz
+from fastapi.responses import StreamingResponse
+import io
+import pandas as pd
+from export_column import columns_map
 
 app = FastAPI(title="Enterprise App", description="API Doc")  # ,docs_url=None, redoc_url=None)
 
@@ -247,6 +251,16 @@ def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, 
             if client.client_manager_three_way_call.first() is not None else '',
             "progress": progress_data
         })
+    if 'export' in request.query_params and request.query_params['export'] == 'true':
+        records = pd.DataFrame(pd.json_normalize(data, sep='_'))
+        records = records.filter(columns_map.keys()).rename(columns=columns_map)
+        stream = io.StringIO()
+        records.to_csv(stream, index = False)
+        response = StreamingResponse(iter([stream.getvalue()]),
+                            media_type="text/csv"
+        )
+        response.headers["Content-Disposition"] = "attachment; filename=export.csv"
+        return response
     return data
 
 # progress = serializers.SerializerMethodField()

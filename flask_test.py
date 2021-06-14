@@ -2,11 +2,13 @@ from flask import Flask, request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import pytz
+import pandas as pd
+from export_column import columns_map
 
 # creates Flask object
 app = Flask(__name__)  # Flask app instance initiated
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pluma_dev:pluma_dev@localhost:5432/pluma_local_db1'
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pluma_dev:pluma_dev@localhost:5432/new_db'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pluma_dev:pluma_dev@localhost:5432/pluma_local_db1'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pluma_dev:pluma_dev@localhost:5432/new_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 # creates SQLALCHEMY object
 db = SQLAlchemy(app)
@@ -382,6 +384,13 @@ def client_metrics(status, group_id):
             if client.client_manager_three_way_call.first() is not None else '',
             "progress": progress_data
         })
+    if 'export' in request.args and request.args.get('export') == 'true':
+        records = pd.DataFrame(pd.json_normalize(data, sep='_'))
+        records = records.filter(columns_map.keys()).rename(columns=columns_map)
+        resp = make_response(records.to_csv(index=False))
+        resp.headers["Content-Disposition"] = "attachment; filename=export.csv"
+        resp.headers["Content-Type"] = "text/csv"
+        return resp
     return make_response(jsonify(data))
 
 
