@@ -1,24 +1,21 @@
-from flask import Flask, request, jsonify, make_response
-from flask_sqlalchemy import SQLAlchemy
+from flask import request, jsonify, make_response
 from datetime import datetime
-import pytz
 import pandas as pd
 from sqlalchemy import desc
 
 from export_column import columns_map
-from flask_models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping, EngagementExtendInfo, \
+from flask_models import AuthUser, Client, ClientGroup, Coach, EngagementExtendInfo, \
     EngagementTracker, Skill
 
 from flask_test import app, db
 
-from utils import  convert_to_timezone_with_offset
+from utils import convert_to_timezone_with_offset
 
 
 def get_client_engagement_end_date(client):
     engagement_end_date = None
-    client_engagement_tracker = db.session.query(EngagementTracker). \
-        filter(EngagementTracker.id.in_((i.id for i in client.client_engagement_tracker))). \
-        filter(EngagementTracker.coach_id == client.assignedCoach_id).all()
+    client_engagement_tracker = client.client_engagement_tracker.filter(
+        EngagementTracker.coach_id == client.assignedCoach_id).all()
     if client_engagement_tracker:
         engagement_end_date = client_engagement_tracker[0].end_date
     elif client.coach_payment_start_date:
@@ -73,9 +70,8 @@ def get_progress_data(client):
         engagement_end_date = convert_to_timezone_with_offset(engagement_end_date, 'America/Los_Angeles',
                                                               isoformat=False)
     try:
-        extend_info = db.session.query(EngagementExtendInfo). \
-            filter(EngagementExtendInfo.id.in_((i.id for i in client.client_engagement_extend))). \
-            filter(EngagementExtendInfo.coach_id == client.assignedCoach_id).order_by(
+        extend_info = client.client_engagement_extend.filter(
+            EngagementExtendInfo.coach_id == client.assignedCoach_id).order_by(
             desc(EngagementExtendInfo.extended_on)).all()
         engagement_extended_date = convert_to_timezone_with_offset(extend_info[0].extended_on, 'America/Los_Angeles',
                                                                    isoformat=False).strftime('%m/%d/%Y')
@@ -118,13 +114,22 @@ my_filter = {"active": db.and_(Client.inactive_flag == False, Client.paused_flag
              "completed": db.and_(Client.engagement_complete == True),
              "deactivated": db.and_(Client.is_deactivated == True)}
 
+ordering_keys = {
+    'firstName': Client.firstName,
+    'email': Client.email,
+    '-firstName': desc(Client.firstName),
+    '-email': desc(Client.email),
+    'group__name': ClientGroup.display_name,
+    '-group__name': desc(ClientGroup.display_name),
+}
+
 
 @app.get("/client-metrics/<status>/<group_id>/")
 def client_metrics(status, group_id, skip=0, limit=100):
-    db_clients = db.session.query(Client, ClientGroup, AuthUser).\
-        filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id).\
-        filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False).\
-        order_by(db.desc(Client.id))
+    db_clients = db.session.query(Client, ClientGroup, AuthUser). \
+        filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id). \
+        filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False)
+
     if group_id != 'all':
         db_clients = db_clients.filter(Client.group_id == int(group_id))
 
@@ -133,6 +138,11 @@ def client_metrics(status, group_id, skip=0, limit=100):
         db_clients = db_clients.filter(filters)
     except:
         pass
+
+    if 'ordering' in request.args:
+        db_clients = db_clients.order_by(ordering_keys.get(request.args.get('ordering')))
+    else:
+        db_clients = db_clients.order_by(desc(Client.id))
 
     if 'export' not in request.args and request.args.get('export') != 'true':
         db_clients = db_clients.offset(skip).limit(limit).all()
@@ -152,7 +162,7 @@ def client_metrics(status, group_id, skip=0, limit=100):
             "education": client.highestEducation,
             "role": client.your_role,
             "notes": client.client_notes.first().notes if client.client_notes.first() else '',
-            "hr_partner": "%s %s" % (client.hr_partner.first().hr_first_name, client.hr_partner.first().hr_last_name) 
+            "hr_partner": "%s %s" % (client.hr_partner.first().hr_first_name, client.hr_partner.first().hr_last_name)
             if client.hr_partner.first() else '',
             "number_of_people_reporting": client.client_numberofpeoplereporting.option
             if client.client_numberofpeoplereporting else '',
@@ -170,6 +180,7 @@ def client_metrics(status, group_id, skip=0, limit=100):
         resp.headers["Content-Type"] = "text/csv"
         return resp
     return make_response(jsonify(data))
+
 
 if __name__ == "__main__":
     app.run(debug=True)

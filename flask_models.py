@@ -331,7 +331,7 @@ class ClientContractInfo(db.Model):
     session_frequency = db.Column(db.Integer, default=0)
     session_length = db.Column(db.Integer, default=0)
 
-    client_contract_info = db.relationship("Client", foreign_keys=[client_id],
+    client_contract_info = db.relationship("Client", foreign_keys=[client_id], uselist=False,
                                            back_populates="client_contract_info")
 
 
