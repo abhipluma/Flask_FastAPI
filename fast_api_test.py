@@ -2,11 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, get_db
 from sqlalchemy.orm import Session
-from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping, NumberofPeopleReporting, Country, \
-    Language, ClientExtraInfo
-from fastapi import APIRouter, Depends, HTTPException, status
+from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping,\
+    EngagementExtendInfo, EngagementTracker, Skill
+from fastapi import Depends
 import models
-from sqlalchemy import distinct, func, desc, or_
+from sqlalchemy import desc, or_
 
 models.Base.metadata.create_all(bind=engine)
 from datetime import datetime
@@ -146,7 +146,6 @@ def convert_to_timezone_with_offset(date_val: datetime, tz: str, converted: bool
     Returns: local naive datetime string with offset
     """
     try:
-        date_val = datetime.strptime(date_val, '%Y-%m-%dT%H:%M:%S.%f%z')
         if not isinstance(date_val, datetime) and type(date_val) is not str:
             date_val = datetime.combine(date_val, datetime.min.time())
 
@@ -164,10 +163,38 @@ def convert_to_timezone_with_offset(date_val: datetime, tz: str, converted: bool
         print('%s: (%s)' % (type(e), e))
 
 
+def get_client_engagement_end_date(client, db):
+    engagement_end_date = None
+    client_engagement_tracker = db.query(EngagementTracker). \
+        filter(EngagementTracker.id.in_((i.id for i in client.client_engagement_tracker))). \
+        filter(EngagementTracker.coach_id == client.assignedCoach_id).all()
+    if client_engagement_tracker:
+        engagement_end_date = client_engagement_tracker[0].end_date
+    elif client.coach_payment_start_date:
+        engagement_end_date = client.coach_payment_start_date + datetime.timedelta(
+            days=client.client_contract_info[0].duration)
+    return engagement_end_date
+
+
 def get_progress_data(client, db):
     logged_in_time = None
     flag_data = client.client_extra_info.first().data
     first_time_password_change = flag_data.get("first_time_password_change")
+    number_of_focus_areas = 0
+    competency_1, competency_2, competency_3, competency_4 = None, None, None, None
+    if client.focus_area_client:
+        focus_area_client = client.focus_area_client
+        number_of_focus_areas = len(focus_area_client)
+        focus_area_skill_ids = tuple([i.focus_area_skill.id for i in focus_area_client])
+        focus_area_skills = db.query(Skill).filter(Skill.id.in_(focus_area_skill_ids)).all()
+        try:
+            competency_1 = focus_area_skills[0].skillName
+            competency_2 = focus_area_skills[1].skillName
+            competency_3 = focus_area_skills[2].skillName
+            competency_4 = focus_area_skills[3].skillName
+        except:
+            pass
+
     if first_time_password_change.get("completed") and \
             first_time_password_change.get("completed_on"):
         logged_in_time = convert_to_timezone_with_offset(first_time_password_change.get("completed_on"),
@@ -189,6 +216,20 @@ def get_progress_data(client, db):
                 completed_360_num += 1 if i.answered else 0
         invited_360_num = ", ".join(["%s - %s" % (k.replace('_', " "), v) for k, v in test.items() if v])
 
+    engagement_end_date = get_client_engagement_end_date(client, db)
+    if engagement_end_date:
+        engagement_end_date = convert_to_timezone_with_offset(engagement_end_date, 'America/Los_Angeles',
+                                                              isoformat=False)
+    try:
+        extend_info = db.query(EngagementExtendInfo). \
+            filter(EngagementExtendInfo.id.in_((i.id for i in client.client_engagement_extend))). \
+            filter(EngagementExtendInfo.coach_id == client.assignedCoach_id).order_by(
+            desc(EngagementExtendInfo.extended_on)).all()
+        engagement_extended_date = convert_to_timezone_with_offset(extend_info[0].extended_on, 'America/Los_Angeles',
+                                                                   isoformat=False).strftime('%m/%d/%Y')
+    except:
+        engagement_extended_date = None
+
     return {
         "logged_in": first_time_password_change.get("completed"),
         "logged_in_time": logged_in_time.strftime('%m/%d/%Y') if logged_in_time else None,
@@ -198,7 +239,14 @@ def get_progress_data(client, db):
         "selected_focus_areas": flag_data["focus_area"]['completed'],
         "coach_name": coach_name,
         "reassessment_opened": client.show_reassessment_by_csm,
-        "reassessment_complete": flag_data['reassessment_complete']['completed']
+        "reassessment_complete": flag_data['reassessment_complete']['completed'],
+        "number_of_focus_areas": number_of_focus_areas,
+        "competency_1": competency_1,
+        "competency_2": competency_2,
+        "competency_3": competency_3,
+        "competency_4": competency_4,
+        "engagement_end_date": engagement_end_date.strftime('%m/%d/%Y') if engagement_end_date else None,
+        "engagement_extended_date": engagement_extended_date
     }
 
 
@@ -213,8 +261,7 @@ def client_metrics(status: str, group_id: str, skip: int = 0, limit: int = 10, d
 
     if status == 'active':
         db_clients = db_clients.filter(Client.inactive_flag == False, Client.paused_flag == False,
-                                       Client.engagement_complete == False, Client.is_deactivated == False).offset(
-            skip).limit(limit).all()
+                                       Client.engagement_complete == False, Client.is_deactivated == False).all()
     elif status == 'paused':
         db_clients = db_clients.filter((Client.inactive_flag == True) | (Client.paused_flag == True)).filter(
             Client.is_deactivated == False).offset(skip).limit(limit).all()
@@ -253,5 +300,3 @@ def client_metrics(status: str, group_id: str, skip: int = 0, limit: int = 10, d
             "progress": progress_data
         })
     return data
-
-# progress = serializers.SerializerMethodField()
