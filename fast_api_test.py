@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, get_db
 from sqlalchemy.orm import Session
@@ -6,7 +6,7 @@ from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping
     Language, ClientExtraInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 import models
-from sqlalchemy import distinct, func, desc, or_
+from sqlalchemy import distinct, func, desc, or_, and_
 
 models.Base.metadata.create_all(bind=engine)
 from datetime import datetime
@@ -202,32 +202,32 @@ def get_progress_data(client, db):
     }
 
 
+my_filter = { "active": and_(Client.inactive_flag == False, Client.paused_flag == False,
+                     Client.engagement_complete == False, Client.is_deactivated == False),
+            "paused": or_(Client.inactive_flag == True, Client.paused_flag == True),
+            "completed": and_(Client.engagement_complete == True),
+            "deactivated": and_(Client.is_deactivated == True)}
 @app.get("/client-metrics/{status}/{group_id}/")
-def client_metrics(status: str, group_id: str, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
-    db_clients = db.query(Client, ClientGroup, AuthUser). \
+def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    db_clients = db.query(Client, ClientGroup, AuthUser, Notes, HRPartnerMapping).\
+        join(Notes, Notes.client_id == Client.id, isouter=True). \
+        join(HRPartnerMapping, HRPartnerMapping.client_id == Client.id, isouter=True). \
         filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id). \
         filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False)
-
+    
     if group_id != 'all':
         db_clients = db_clients.filter(Client.group_id == int(group_id))
 
-    if status == 'active':
-        db_clients = db_clients.filter(Client.inactive_flag == False, Client.paused_flag == False,
-                                       Client.engagement_complete == False, Client.is_deactivated == False).offset(
-            skip).limit(limit).all()
-    elif status == 'paused':
-        db_clients = db_clients.filter((Client.inactive_flag == True) | (Client.paused_flag == True)).filter(
+    try:
+        filters = my_filter[status]
+        db_clients = db_clients.filter(filters).filter(
             Client.is_deactivated == False).offset(skip).limit(limit).all()
-    elif status == 'completed':
-        db_clients = db_clients.filter(Client.engagement_complete == True).offset(skip).limit(limit).all()
-    elif status == 'deactivated':
-        db_clients = db_clients.filter(Client.is_deactivated == True).offset(skip).limit(limit).all()
-    else:
+    except:
         db_clients = db_clients.offset(skip).limit(limit).all()
-
+    
     data = []
     for db_client in db_clients:
-        client, group, user = db_client
+        client, group, user, note, hr_partner = db_client
         progress_data = get_progress_data(client, db)
         data.append({
             "id": client.id,
@@ -237,13 +237,8 @@ def client_metrics(status: str, group_id: str, skip: int = 0, limit: int = 10, d
             "zip_code": client.zipCode,
             "education": client.highestEducation,
             "role": client.your_role,
-            "notes": db.query(Notes).filter(Notes.client_id == client.id).first().notes
-            if db.query(Notes).filter(Notes.client_id == client.id).first() else '',
-            "hr_partner": db.query(HRPartnerMapping).filter(
-                HRPartnerMapping.client_id == client.id).first().hr_first_name
-                          + ' ' + db.query(HRPartnerMapping).filter(
-                HRPartnerMapping.client_id == client.id).first().hr_last_name
-            if db.query(HRPartnerMapping).filter(HRPartnerMapping.client_id == client.id).first() else '',
+            "notes": note.notes if note else '',
+            "hr_partner": "%s %s" % (hr_partner.hr_first_name, hr_partner.hr_last_name) if hr_partner else '',
             "number_of_people_reporting": client.client_numberofpeoplereporting.option
             if client.client_numberofpeoplereporting else '',
             "country": client.client_country.country if client.client_country else '',
