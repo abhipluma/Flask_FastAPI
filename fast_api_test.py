@@ -6,7 +6,7 @@ from models import AuthUser, Client, ClientGroup, Coach, Notes, HRPartnerMapping
     EngagementTracker, Skill
 from fastapi import  Depends
 import models
-from sqlalchemy import  desc, or_, and_
+from sqlalchemy import desc, or_, and_
 
 models.Base.metadata.create_all(bind=engine)
 from datetime import datetime
@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 import io
 import pandas as pd
 from export_column import columns_map
+from utils import  convert_to_timezone_with_offset
 
 app = FastAPI(title="Enterprise App", description="API Doc")  # ,docs_url=None, redoc_url=None)
 
@@ -140,33 +141,6 @@ def read_users(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
     return response_data
 
 
-def convert_to_timezone_with_offset(date_val: datetime, tz: str, converted: bool = False, isoformat: bool = True,
-                                    no_offset: bool = True):
-    """
-    Converting tz-aware datetime object to local tz string with offset
-    Args:
-        date: tz-aware datetime object
-        tz:   local timezone
-    Returns: local naive datetime string with offset
-    """
-    try:
-        if not isinstance(date_val, datetime) and type(date_val) is not str:
-            date_val = datetime.combine(date_val, datetime.min.time())
-
-        if converted:
-            res = date_val.replace(tzinfo=pytz.timezone(tz))
-        else:
-            res = date_val.astimezone(pytz.timezone(tz))
-
-        if isoformat:
-            if no_offset:
-                res = res.replace(tzinfo=None)
-            return res.isoformat()
-        return res
-    except Exception as e:
-        print('%s: (%s)' % (type(e), e))
-
-
 def get_client_engagement_end_date(client, db):
     engagement_end_date = None
     client_engagement_tracker = db.query(EngagementTracker). \
@@ -263,27 +237,30 @@ my_filter = {"active": and_(Client.inactive_flag == False, Client.paused_flag ==
 
 
 @app.get("/client-metrics/{status}/{group_id}/")
-def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, limit: int = 10,
+def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, limit: int = 100,
                    db: Session = Depends(get_db)):
-    db_clients = db.query(Client, ClientGroup, AuthUser, Notes, HRPartnerMapping). \
-        join(Notes, Notes.client_id == Client.id, isouter=True). \
-        join(HRPartnerMapping, HRPartnerMapping.client_id == Client.id, isouter=True). \
+    db_clients = db.query(Client, ClientGroup, AuthUser).\
         filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id). \
-        filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False)
-
+        filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False).\
+        order_by(desc(Client.id))
+    print(db_clients.count())
     if group_id != 'all':
-        db_clients = db_clients.filter(Client.group_id == int(group_id))
+        db_clients = db_clients.filter(Client.group_id == int(group_id), Client.id==84)
 
     try:
         filters = my_filter[status]
-        db_clients = db_clients.filter(filters).filter(
-            Client.is_deactivated == False).offset(skip).limit(limit).all()
+        db_clients = db_clients.filter(filters)
     except:
+        pass
+
+    if 'export' not in request.query_params:
         db_clients = db_clients.offset(skip).limit(limit).all()
+    else:
+        db_clients = db_clients.all()
 
     data = []
     for db_client in db_clients:
-        client, group, user, note, hr_partner = db_client
+        client, group, user = db_client
         progress_data = get_progress_data(client, db)
         data.append({
             "id": client.id,
@@ -293,14 +270,15 @@ def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, 
             "zip_code": client.zipCode,
             "education": client.highestEducation,
             "role": client.your_role,
-            "notes": note.notes if note else '',
-            "hr_partner": "%s %s" % (hr_partner.hr_first_name, hr_partner.hr_last_name) if hr_partner else '',
+            "notes": client.client_notes.first().notes if client.client_notes.first() else '',
+            "hr_partner": "%s %s" % (client.hr_partner.first().hr_first_name, client.hr_partner.first().hr_last_name) 
+            if client.hr_partner.first() else '',
             "number_of_people_reporting": client.client_numberofpeoplereporting.option
             if client.client_numberofpeoplereporting else '',
             "country": client.client_country.country if client.client_country else '',
             "language": client.client_language.language if client.client_language else '',
             'manager_call_count': client.client_manager_three_way_call.count()
-            if client.client_manager_three_way_call.first() is not None else '',
+            if client.client_manager_three_way_call.first() is not None else 0,
             "progress": progress_data
         })
     if 'export' in request.query_params and request.query_params['export'] == 'true':

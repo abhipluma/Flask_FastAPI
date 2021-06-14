@@ -134,14 +134,19 @@ class Client(Base):
     focus_area_client = relationship("FocusAreaSkillSelection", foreign_keys='FocusAreaSkillSelection.client_id',
                                      back_populates="focus_area_client")
 
-    client_engagement_tracker = relationship("EngagementTracker", foreign_keys='EngagementTracker.client_id',
+    client_engagement_tracker = relationship("EngagementTracker", foreign_keys='EngagementTracker.client_id', lazy='dynamic',
                                              back_populates="client_engagement_tracker")
-    client_contract_info = relationship("ClientContractInfo", foreign_keys='ClientContractInfo.client_id',
+    client_contract_info = relationship("ClientContractInfo", foreign_keys='ClientContractInfo.client_id', lazy='dynamic',
                                         back_populates="client_contract_info")
     client_engagement_extend = relationship("EngagementExtendInfo",
-                                            foreign_keys='EngagementExtendInfo.client_id',
+                                            foreign_keys='EngagementExtendInfo.client_id', lazy='dynamic',
                                             back_populates="client_engagement_extend")
 
+    client_notes = relationship("Notes", foreign_keys='Notes.client_id', lazy='dynamic',
+                                     back_populates="client_notes")
+
+    hr_partner = relationship("HRPartnerMapping", foreign_keys='HRPartnerMapping.client_id', lazy='dynamic',
+                                     back_populates="hr_partner")
 
 class ClientGroup(Base):
     __tablename__ = 'client_onboarding_clientgroup'
@@ -172,15 +177,20 @@ class Notes(Base):
     __tablename__ = 'enterprice_dashboard_notes'
     id = Column(Integer, primary_key=True, index=True)
     notes = Column(String)
-    client_id = Column(Integer)
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+    client_notes = relationship("Client",
+                                        foreign_keys=[client_id], back_populates="client_notes")
 
 
 class HRPartnerMapping(Base):
     __tablename__ = 'enterprice_dashboard_hrpartnermapping'
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer)
     hr_first_name = Column(String)
     hr_last_name = Column(String)
+
+    client_id = Column(Integer, ForeignKey('client_onboarding_client.id'))
+    hr_partner = relationship("Client",
+                                        foreign_keys=[client_id], back_populates="hr_partner")
 
 
 class NumberofPeopleReporting(Base):
