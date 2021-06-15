@@ -210,6 +210,8 @@ def client(skip=0, limit=100):
                             FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
                             (select COALESCE("end_date"::date::text, COC.coach_payment_start_date::date::text) AS "engagement_end_date" 
                             FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
+                            (select COALESCE("extended_on"::date::text, null) AS "engagement_extend_date" 
+                            FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" and COEEI.extended_on is not null limit 1),
                            (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
                            where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
                            from client_onboarding_client as COC WHERE COC.is_test_account = false  
