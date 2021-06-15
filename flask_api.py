@@ -200,18 +200,27 @@ def client(skip=0, limit=100):
                            (select notes from enterprice_dashboard_notes as EDN where EDN.client_id=COC.id limit 1),
                            (select CONCAT("firstName", "lastName") AS "coach_name" FROM coach_onboarding_coach as coach where coach.id="assignedCoach_id"),
                            (select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id ),
-                           (select "data" FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
-                           (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
+                           (select "data"->'first_time_password_change' as first_time_password_change
+                            FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
+                            (select "data"->'coach_changed' as coach_changed
+                            FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
+                            (select "data"->'focus_area' as focus_area
+                            FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
+                            (select "data"->'reassessment_complete' as reassessment_complete
+                            FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
+                            (select COALESCE("end_date"::date::text, COC.coach_payment_start_date::date::text) AS "engagement_end_date" 
+                            FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
+                           (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
+                           where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
                            from client_onboarding_client as COC WHERE COC.is_test_account = false  
                            ''')
         # '(select "related_as"  FROM exercise_peopleansweringexercise as EPAE where EPAE.id=EUAM.answered_by_id ), '
-        # (select COALESCE("end_date", COC.coach_payment_start_date) AS # "engagement_end_date" FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
         # (select COALESCE("extended_on") AS "engagement_extend_date" FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" limit 1)
         sql_df = pandas.read_sql(
             sql,
             con=db.engine,
         )
-        # sql_df = sql_df.dropna()
+        # sql_df = sql_df.fillna("-",inplace=True)
         data = sql_df.to_dict('records')
     else:
         db_clients = db.session.query(Client).all()
