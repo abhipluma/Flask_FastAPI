@@ -188,15 +188,19 @@ def client_metrics(status, group_id, skip=0, limit=100):
 def client(skip=0, limit=100):
     data = []
     if 'sql' in request.args:
-        sql = text('select "id", CONCAT("firstName", "lastName") as "client_name", "email" as "client_email",'
-                   '"your_role" as "role", "zipCode" as "zip_code", "highestEducation" as "education", '
-                   '(select "display_name" AS "group" FROM client_onboarding_clientgroup as CG where CG.id=COC.group_id ), '
-                   '(select "language" FROM coach_onboarding_language as CL where CL.id=COC.preferred_language_id ),'
-                   '(select "country" FROM coach_onboarding_country as CC where CC.id=COC.country_id ),'
-                   '(select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id )'
-                   'from client_onboarding_client as COC WHERE COC.is_test_account = false '
-                   )
-        # '(select CONCAT("firstName", "lastName") AS "coach_name" FROM coach_onboarding_coach as coach where coach.id=COC.assignedCoach_id )'
+        sql = text('''
+                   select "id", CONCAT("firstName", "lastName") as "client_name", "email" as "client_email",
+                   "your_role" as "role", "zipCode" as "zip_code", "highestEducation" as "education", 
+                   (select "display_name" AS "group" FROM client_onboarding_clientgroup as CG where CG.id=COC.group_id ), 
+                   (select "language" FROM coach_onboarding_language as CL where CL.id=COC.preferred_language_id ),
+                   (select "country" FROM coach_onboarding_country as CC where CC.id=COC.country_id ),
+                   (select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id),
+                   (select CONCAT(EDHP.hr_first_name, EDHP.hr_last_name) as hr_partner from enterprice_dashboard_hrpartnermapping as EDHP where EDHP.client_id=COC.id limit 1),
+                   (select count(*) as manager_call_count from chat_managerthreewaycallsession as CMTCS where CMTCS.client_id=COC.id),
+                   (select notes from enterprice_dashboard_notes as EDN where EDN.client_id=COC.id limit 1),
+                   (select CONCAT("firstName", "lastName") AS "coach_name" FROM coach_onboarding_coach as coach where coach.id="assignedCoach_id")
+                   from client_onboarding_client as COC WHERE COC.is_test_account = false  
+                   ''')
         sql_df = pandas.read_sql(
             sql,
             con=db.engine
