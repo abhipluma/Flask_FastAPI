@@ -55,7 +55,7 @@ class Client(db.Model):
     # areas_of_expertise_id = db.Column(db.Integer)
     # languages_id = db.Column(db.Integer)
     preferred_language_id = db.Column(db.Integer, db.ForeignKey('coach_onboarding_language.id'))
-    assignedCoach_id = db.Column(db.Integer, nullable=True)
+    assignedCoach_id = db.Column(db.Integer, db.ForeignKey('coach_onboarding_coach.id'))
     assigned_csm_id = db.Column(db.Integer, nullable=True)
     firstName = db.Column(db.String, )
     lastName = db.Column(db.String, )
@@ -125,6 +125,8 @@ class Client(db.Model):
     assessment_only_plus_two = db.Column(db.Boolean, default=False, )
 
     client_group = db.relationship("ClientGroup", foreign_keys=[group_id], back_populates="client_group")
+    client_coach = db.relationship("Coach", foreign_keys=[assignedCoach_id], back_populates="client_coach")
+
     client_user = db.relationship("AuthUser", foreign_keys=[user_id], back_populates="client_user")
     client_numberofpeoplereporting = db.relationship("NumberofPeopleReporting",
                                                      foreign_keys=[number_of_people_reporting_id],
@@ -181,6 +183,8 @@ class Coach(db.Model):
     is_test_account = db.Column(db.Boolean)
     inactive_flag = db.Column(db.Boolean)
     is_external_coach = db.Column(db.Boolean)
+
+    client_coach = db.relationship("Client", lazy='dynamic', foreign_keys='Client.assignedCoach_id', back_populates="client_coach")
 
     engagement_tracker_coach = db.relationship('EngagementTracker', foreign_keys='EngagementTracker.coach_id',
                                                back_populates="engagement_tracker_coach")

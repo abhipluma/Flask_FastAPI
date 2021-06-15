@@ -1,3 +1,4 @@
+import pandas
 from flask import request, jsonify, make_response
 from datetime import datetime
 import pandas as pd
@@ -182,18 +183,29 @@ def client_metrics(status, group_id, skip=0, limit=100):
         return resp
     return make_response(jsonify(data))
 
+
 @app.get("/client/")
 def client(skip=0, limit=100):
     data = []
     if 'sql' in request.args:
-        sql = text('select "firstName" from client_onboarding_client')
-        db_clients = db.engine.execute(sql)
-        for row in db_clients:
-            data.append({"firstName":row[0]})
+        sql = text('select "id", CONCAT("firstName", "lastName") as "client_name", "email" as "client_email",'
+                   '"your_role" as "role", "zipCode" as "zip_code", "highestEducation" as "education", '
+                   '(select "display_name" AS "group" FROM client_onboarding_clientgroup as CG where CG.id=COC.group_id ), '
+                   '(select "language" FROM coach_onboarding_language as CL where CL.id=COC.preferred_language_id ),'
+                   '(select "country" FROM coach_onboarding_country as CC where CC.id=COC.country_id ),'
+                   '(select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id )'
+                   'from client_onboarding_client as COC WHERE COC.is_test_account = false '
+                   )
+        # '(select CONCAT("firstName", "lastName") AS "coach_name" FROM coach_onboarding_coach as coach where coach.id=COC.assignedCoach_id )'
+        sql_df = pandas.read_sql(
+            sql,
+            con=db.engine
+        )
+        data = sql_df.to_dict('records')
     else:
         db_clients = db.session.query(Client).all()
         for db_client in db_clients:
-            data.append({ "firstName": db_client.firstName })
+            data.append({"firstName": db_client.firstName})
     return make_response(jsonify(data))
 
 
