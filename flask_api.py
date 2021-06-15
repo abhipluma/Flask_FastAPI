@@ -183,6 +183,11 @@ def client_metrics(status, group_id, skip=0, limit=100):
         return resp
     return make_response(jsonify(data))
 
+status_filter = {"active": ''' and COC.inactive_flag = false and COC.paused_flag = false and
+                            COC.engagement_complete = false  and COC.is_deactivated = false''',
+             "paused": ''' and (COC.inactive_flag = true or  COC.paused_flag = true)''',
+             "completed": ''' and COC.engagement_complete = true''',
+             "deactivated": ''' and COC.is_deactivated = true '''}
 
 @app.get("/client/<status>/<group_id>/")
 def client(status, group_id,skip=0, limit=100):
@@ -214,8 +219,9 @@ def client(status, group_id,skip=0, limit=100):
                 FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" and COEEI.extended_on is not null limit 1),
                (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
                where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
-               from client_onboarding_client as COC WHERE COC.is_test_account = false  
-               '''+ f'''and COC.group_id={group_id}''' if group_id != 'all' else '''''')
+               from client_onboarding_client as COC WHERE COC.is_test_account = false 
+                '''+ status_filter.get(status) if status != 'all' else '''''' + f'''and COC.group_id={group_id}''' if group_id != 'all' else '''''')
+
         # '(select "related_as"  FROM exercise_peopleansweringexercise as EPAE where EPAE.id=EUAM.answered_by_id ), '
         # (select COALESCE("extended_on") AS "engagement_extend_date" FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" limit 1)
         sql_df = pandas.read_sql(
