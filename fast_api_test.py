@@ -249,7 +249,7 @@ def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, 
         filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id). \
         filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False)
     if group_id != 'all':
-        db_clients = db_clients.filter(Client.group_id == int(group_id), Client.id == 84)
+        db_clients = db_clients.filter(Client.group_id == int(group_id))
 
     try:
         filters = my_filter[status]

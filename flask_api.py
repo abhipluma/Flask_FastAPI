@@ -10,6 +10,7 @@ from flask_models import AuthUser, Client, ClientGroup, Coach, EngagementExtendI
 from flask_test import app, db
 
 from utils import convert_to_timezone_with_offset
+from sqlalchemy import text
 
 
 def get_client_engagement_end_date(client):
@@ -179,6 +180,20 @@ def client_metrics(status, group_id, skip=0, limit=100):
         resp.headers["Content-Disposition"] = "attachment; filename=export.csv"
         resp.headers["Content-Type"] = "text/csv"
         return resp
+    return make_response(jsonify(data))
+
+@app.get("/client/")
+def client(skip=0, limit=100):
+    data = []
+    if 'sql' in request.args:
+        sql = text('select "firstName" from client_onboarding_client')
+        db_clients = db.engine.execute(sql)
+        for row in db_clients:
+            data.append({"firstName":row[0]})
+    else:
+        db_clients = db.session.query(Client).all()
+        for db_client in db_clients:
+            data.append({ "firstName": db_client.firstName })
     return make_response(jsonify(data))
 
 
