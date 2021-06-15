@@ -304,6 +304,13 @@ def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, 
     return data
 
 
+status_filter = {"active": ''' and COC.inactive_flag = false and COC.paused_flag = false and
+                            COC.engagement_complete = false  and COC.is_deactivated = false''',
+             "paused": ''' and (COC.inactive_flag = true or  COC.paused_flag = true)''',
+             "completed": ''' and COC.engagement_complete = true''',
+             "deactivated": ''' and COC.is_deactivated = true '''}
+
+
 @app.get("/client/{status}/{group_id}/")
 def client(request: Request,status: str, group_id: str, db: Session = Depends(get_db), skip=0, limit=100):
     data = []
@@ -335,7 +342,7 @@ def client(request: Request,status: str, group_id: str, db: Session = Depends(ge
                (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
                where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
                from client_onboarding_client as COC WHERE COC.is_test_account = false  
-               '''+ f'''and COC.group_id={group_id}''' if group_id != 'all' else '''''')
+               '''+ status_filter.get(status) if status != 'all' else '''''' + f'''and COC.group_id={group_id}''' if group_id != 'all' else '''''')
 
         # '(select "related_as"  FROM exercise_peopleansweringexercise as EPAE where EPAE.id=EUAM.answered_by_id ), '
         # (select COALESCE("end_date", COC.coach_payment_start_date) AS # "engagement_end_date" FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
