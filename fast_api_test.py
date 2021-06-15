@@ -1,3 +1,4 @@
+import pandas
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, get_db
@@ -6,7 +7,7 @@ from models import AuthUser, Client, ClientGroup, Coach, EngagementExtendInfo, \
     EngagementTracker, Skill
 from fastapi import Depends
 import models
-from sqlalchemy import desc, or_, and_
+from sqlalchemy import desc, or_, and_, text
 
 models.Base.metadata.create_all(bind=engine)
 from datetime import datetime
@@ -300,4 +301,29 @@ def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, 
                                      )
         response.headers["Content-Disposition"] = "attachment; filename=export.csv"
         return response
+    return data
+
+
+@app.get("/client/")
+def client(request: Request, db: Session = Depends(get_db), skip=0, limit=100):
+    data = []
+    if 'sql' in request.query_params:
+        sql = text('select "id", CONCAT("firstName", "lastName") as "client_name", "email" as "client_email",'
+                   '"your_role" as "role", "zipCode" as "zip_code", "highestEducation" as "education", '
+                   '(select "display_name" AS "group" FROM client_onboarding_clientgroup as CG where CG.id=COC.group_id ), '
+                   '(select "language" FROM coach_onboarding_language as CL where CL.id=COC.preferred_language_id ),'
+                   '(select "country" FROM coach_onboarding_country as CC where CC.id=COC.country_id ),'
+                   '(select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id )'
+                   'from client_onboarding_client as COC WHERE COC.is_test_account = false '
+                   )
+        # '(select CONCAT("firstName", "lastName") AS "coach_name" FROM coach_onboarding_coach as coach where coach.id=COC.assignedCoach_id )'
+        sql_df = pandas.read_sql(
+            sql,
+            con=engine
+        )
+        data = sql_df.to_dict('records')
+    else:
+        db_clients = db.session.query(Client).all()
+        for db_client in db_clients:
+            data.append({"firstName": db_client.firstName})
     return data
