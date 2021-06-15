@@ -193,8 +193,11 @@ status_filter = {"active": ''' and COC.inactive_flag = false and COC.paused_flag
 def client(status, group_id,skip=0, limit=100):
     data = []
     if 'sql' in request.args:
+        condition = f'''and COC.group_id={group_id}''' if group_id != 'all' else ''''''
+        condition += f'''{status_filter.get(status)}''' if status != 'all' else ''''''
+        condition += ''' order by COC.id desc'''
         sql = text('''
-               select "id", CONCAT("firstName", "lastName") as "client_name", "email" as "client_email",
+               select COC."id", CONCAT("firstName", "lastName") as "client_name", COC."email" as "client_email",
                "your_role" as "role", "zipCode" as "zip_code", "highestEducation" as "education", 
                (select "display_name" AS "group" FROM client_onboarding_clientgroup as CG where CG.id=COC.group_id ), 
                (select "language" FROM coach_onboarding_language as CL where CL.id=COC.preferred_language_id ),
@@ -219,9 +222,11 @@ def client(status, group_id,skip=0, limit=100):
                 FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" and COEEI.extended_on is not null limit 1),
                (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
                where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
-               from client_onboarding_client as COC WHERE COC.is_test_account = false 
-                '''+ status_filter.get(status) if status != 'all' else '''''' + f'''and COC.group_id={group_id}''' if group_id != 'all' else '''''')
-
+               from client_onboarding_client as COC 
+               inner join client_onboarding_clientgroup COCG on COCG.id = COC.group_id
+               inner join auth_user AU on AU.id = COC.user_id
+               WHERE COC.is_test_account = false and COCG.take_assessment_only = false
+                '''+ condition)
         # '(select "related_as"  FROM exercise_peopleansweringexercise as EPAE where EPAE.id=EUAM.answered_by_id ), '
         # (select COALESCE("extended_on") AS "engagement_extend_date" FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" limit 1)
         sql_df = pandas.read_sql(

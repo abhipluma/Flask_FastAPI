@@ -315,6 +315,9 @@ status_filter = {"active": ''' and COC.inactive_flag = false and COC.paused_flag
 def client(request: Request,status: str, group_id: str, db: Session = Depends(get_db), skip=0, limit=100):
     data = []
     if 'sql' in request.query_params:
+        condition = f'''and COC.group_id={group_id}''' if group_id != 'all' else ''''''
+        condition += f'''{status_filter.get(status)}''' if status != 'all' else ''''''
+        condition += ''' order by COC.id desc'''
         sql = text('''
                select "id", CONCAT("firstName", "lastName") as "client_name", "email" as "client_email",
                "your_role" as "role", "zipCode" as "zip_code", "highestEducation" as "education", 
@@ -342,7 +345,7 @@ def client(request: Request,status: str, group_id: str, db: Session = Depends(ge
                (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
                where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
                from client_onboarding_client as COC WHERE COC.is_test_account = false  
-               '''+ status_filter.get(status) if status != 'all' else '''''' + f'''and COC.group_id={group_id}''' if group_id != 'all' else '''''')
+               '''+ condition)
 
         # '(select "related_as"  FROM exercise_peopleansweringexercise as EPAE where EPAE.id=EUAM.answered_by_id ), '
         # (select COALESCE("end_date", COC.coach_payment_start_date) AS # "engagement_end_date" FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
