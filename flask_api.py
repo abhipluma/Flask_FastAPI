@@ -249,7 +249,9 @@ def client(status, group_id, skip=0, limit=100):
                 FROM exercise_useranswermapper as EUAM 
                 inner join exercise_peopleansweringexercise as EPAE on EPAE.id=EUAM.answered_by_id
                 where EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True
-                group by EPAE.related_as, EUAM.user_id) RRC group by user_id) as UAM where UAM.user_id = COC.user_id)
+                group by EPAE.related_as, EUAM.user_id) RRC group by user_id) as UAM where UAM.user_id = COC.user_id),
+                (select competency from (select client_id,string_agg(CDS."skillName", ', ') as competency from client_onboarding_focusareaskillselection as COFASS
+                inner join coach_dashboard_skill CDS on CDS.id =  COFASS.focus_area_skill_id group by client_id) COMP where COMP.client_id= COC.id)
                from client_onboarding_client as COC 
                inner join client_onboarding_clientgroup COCG on COCG.id = COC.group_id
                inner join auth_user AU on AU.id = COC.user_id
