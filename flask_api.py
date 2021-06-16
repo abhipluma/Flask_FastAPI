@@ -3,6 +3,7 @@ from flask import request, jsonify, make_response
 from datetime import datetime
 import pandas as pd
 from sqlalchemy import desc
+import pytz
 
 from export_column import columns_map
 from flask_models import AuthUser, Client, ClientGroup, Coach, EngagementExtendInfo, \
@@ -29,7 +30,6 @@ def get_client_engagement_end_date(client):
 def get_progress_data(client):
     logged_in_time = None
     flag_data = client.client_extra_info.first().data
-    print(flag_data.get("first_time_password_change"))
     first_time_password_change = flag_data.get("first_time_password_change")
     number_of_focus_areas = 0
     competency_1, competency_2, competency_3, competency_4 = None, None, None, None
@@ -127,7 +127,7 @@ ordering_keys = {
 
 
 @app.get("/client-metrics/<status>/<group_id>/")
-def client_metrics(status, group_id, skip=0, limit=100):
+def client_metrics(status, group_id, skip=0, limit=1000):
     db_clients = db.session.query(Client, ClientGroup, AuthUser). \
         filter(Client.group_id == ClientGroup.id, Client.user_id == AuthUser.id). \
         filter(ClientGroup.take_assessment_only == False, Client.is_test_account == False)
@@ -218,25 +218,27 @@ def client(status, group_id, skip=0, limit=100):
                (select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id),
                (select CONCAT(EDHP.hr_first_name, EDHP.hr_last_name) as hr_partner from enterprice_dashboard_hrpartnermapping as EDHP where EDHP.client_id=COC.id limit 1),
                (select count(*) as manager_call_count from chat_managerthreewaycallsession as CMTCS where CMTCS.client_id=COC.id),
-               (select count(*) as progress_number_of_focus_areas from client_onboarding_focusareaskillselection as COFASS where COFASS.client_id=COC.id),
+               (select count(*) as number_of_focus_areas from client_onboarding_focusareaskillselection as COFASS where COFASS.client_id=COC.id),
                (select notes from enterprice_dashboard_notes as EDN where EDN.client_id=COC.id limit 1),
-               (select CONCAT("firstName", "lastName") AS "progress_coach_name" FROM coach_onboarding_coach as coach where coach.id="assignedCoach_id"),
+               (select CONCAT("firstName", "lastName") AS "coach_name" FROM coach_onboarding_coach as coach where coach.id="assignedCoach_id"),
                (select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id ),
-               (select "data"->'first_time_password_change' as first_time_password_change
+               (select "data"->'first_time_password_change'->'completed' as logged_in
                 FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
-                (select "data"->'coach_changed' as coach_changed
+                (select "data"->'first_time_password_change'->'completed_on' as logged_in_time
                 FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
-                (select "data"->'focus_area' as focus_area
+                (select "data"->'coach_changed'->'completed' as coach_changed
                 FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
-                (select "data"->'reassessment_complete' as reassessment_complete
+                (select "data"->'focus_area'->'completed' as focus_area
                 FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
-                (select COALESCE("end_date"::date::text, COC.coach_payment_start_date::date::text) AS "progress_engagement_end_date" 
+                (select "data"->'reassessment_complete'->'completed' as reassessment_complete
+                FROM client_onboarding_clientextrainfo as CEI where CEI.client_id=COC.id),
+                (select COALESCE("end_date"::date::text, COC.coach_payment_start_date::date::text) AS "engagement_end_date" 
                 FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
-                (select COALESCE("extended_on"::date::text, null) AS "progress_engagement_extend_date" 
+                (select COALESCE("extended_on"::date::text, null) AS "engagement_extend_date" 
                 FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" and COEEI.extended_on is not null limit 1),
-                (select count(*) AS "progress_completed_360_num" FROM exercise_useranswermapper as EUAM 
+                (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
                 where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True ),
-                (select invited_360_num as progress_invited_360_num from (select user_id, concat(
+                (select invited_360_num as invited_360_num from (select user_id, concat(
                 case when sum(Manager_count) = 0 then '' else concat('Manager -', sum(Manager_count)) end,
                 case when sum(direct_report) = 0 then '' else concat(', Direct report -', sum(direct_report)) end,
                 case when sum(cross_function_colleague) = 0 then '' else concat(', Cross-functional colleague -', sum(cross_function_colleague)) end,
