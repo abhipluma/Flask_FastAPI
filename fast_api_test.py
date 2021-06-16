@@ -306,18 +306,28 @@ def client_metrics(request: Request, status: str, group_id: str, skip: int = 0, 
 
 status_filter = {"active": ''' and COC.inactive_flag = false and COC.paused_flag = false and
                             COC.engagement_complete = false  and COC.is_deactivated = false''',
-             "paused": ''' and (COC.inactive_flag = true or  COC.paused_flag = true)''',
-             "completed": ''' and COC.engagement_complete = true''',
-             "deactivated": ''' and COC.is_deactivated = true '''}
+                 "paused": ''' and (COC.inactive_flag = true or  COC.paused_flag = true)''',
+                 "completed": ''' and COC.engagement_complete = true''',
+                 "deactivated": ''' and COC.is_deactivated = true '''}
+
+sql_ordering_keys = {
+    'firstName': ''' order by "firstName" ''',
+    'email': ''' order by "client_email" ''',
+    '-firstName': ''' order by "firstName" desc''',
+    '-email': ''' order by "client_email" desc''',
+    'group__name': ''' order by "group" ''',
+    '-group__name': ''' order by "group" ''',
+}
 
 
 @app.get("/client/{status}/{group_id}/")
-def client(request: Request,status: str, group_id: str, db: Session = Depends(get_db), skip=0, limit=100):
+def client(request: Request, status: str, group_id: str, db: Session = Depends(get_db), skip=0, limit=100):
     data = []
     if 'sql' in request.query_params:
         condition = f'''and COC.group_id={group_id}''' if group_id != 'all' else ''''''
         condition += f'''{status_filter.get(status)}''' if status != 'all' else ''''''
-        condition += ''' order by COC.id desc'''
+        condition += sql_ordering_keys.get(
+            request.query_params.get('ordering')) if 'ordering' in request.query_params else ''' order by COC.id desc'''
         sql = text('''
                select COC."id", CONCAT("firstName", "lastName") as "client_name", COC."email" as "client_email",
                "your_role" as "role", "zipCode" as "zip_code", "highestEducation" as "education", 
@@ -327,6 +337,7 @@ def client(request: Request,status: str, group_id: str, db: Session = Depends(ge
                (select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id),
                (select CONCAT(EDHP.hr_first_name, EDHP.hr_last_name) as hr_partner from enterprice_dashboard_hrpartnermapping as EDHP where EDHP.client_id=COC.id limit 1),
                (select count(*) as manager_call_count from chat_managerthreewaycallsession as CMTCS where CMTCS.client_id=COC.id),
+               (select count(*) as number_of_focus_areas from client_onboarding_focusareaskillselection as COFASS where COFASS.client_id=COC.id),
                (select notes from enterprice_dashboard_notes as EDN where EDN.client_id=COC.id limit 1),
                (select CONCAT("firstName", "lastName") AS "coach_name" FROM coach_onboarding_coach as coach where coach.id="assignedCoach_id"),
                (select "option" AS "number_of_people_reporting" FROM client_onboarding_numberofpeoplereporting as CPR where CPR.id=COC.number_of_people_reporting_id ),
@@ -362,11 +373,8 @@ def client(request: Request,status: str, group_id: str, db: Session = Depends(ge
                inner join client_onboarding_clientgroup COCG on COCG.id = COC.group_id
                inner join auth_user AU on AU.id = COC.user_id
                WHERE COC.is_test_account = false and COCG.take_assessment_only = false
-                '''+ condition)
+                ''' + condition)
 
-        # '(select "related_as"  FROM exercise_peopleansweringexercise as EPAE where EPAE.id=EUAM.answered_by_id ), '
-        # (select COALESCE("end_date", COC.coach_payment_start_date) AS # "engagement_end_date" FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
-        # (select COALESCE("extended_on") AS "engagement_extend_date" FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" limit 1)
         sql_df = pandas.read_sql(
             sql,
             con=engine
