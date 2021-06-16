@@ -220,8 +220,22 @@ def client(status, group_id,skip=0, limit=100):
                 FROM client_onboarding_engagementtracker as COET where COET.client_id = COC.id AND COET.coach_id = "assignedCoach_id" and COET.end_date is not null limit 1),
                 (select COALESCE("extended_on"::date::text, null) AS "engagement_extend_date" 
                 FROM client_onboarding_engagementextendinfo as COEEI where COEEI.client_id = COC.id AND COEEI.coach_id = "assignedCoach_id" and COEEI.extended_on is not null limit 1),
-               (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
-               where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True )
+                (select count(*) AS "completed_360_num" FROM exercise_useranswermapper as EUAM 
+                where EUAM.user_id=COC.user_id and EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True ),
+                (select invited_360_num from (select user_id, concat(
+                case when sum(Manager_count) = 0 then '' else concat('Manager -', sum(Manager_count)) end,
+                case when sum(direct_report) = 0 then '' else concat(', Direct report -', sum(direct_report)) end,
+                case when sum(cross_function_colleague) = 0 then '' else concat(', Cross-functional colleague -', sum(cross_function_colleague)) end,
+                case when sum(peer_team_member) = 0 then '' else concat(', Peer team member -', sum(peer_team_member)) end
+                ) as invited_360_num from (select EUAM.user_id,
+                (count(case when EPAE.related_as = 'Manager' then 1 else Null end)) as Manager_count,
+                (count(case when EPAE.related_as = 'Direct report' then 1 else Null end)) as direct_report,
+                (count(case when EPAE.related_as = 'Cross-functional colleague' then 1 else Null end)) as cross_function_colleague,
+                (count(case when EPAE.related_as = 'Peer team member' then 1 else Null end)) as peer_team_member
+                FROM exercise_useranswermapper as EUAM 
+                inner join exercise_peopleansweringexercise as EPAE on EPAE.id=EUAM.answered_by_id
+                where EUAM.is_reassessment = False and EUAM.answered_by_id is not null and EUAM.answered =True
+                group by EPAE.related_as, EUAM.user_id) RRC group by user_id) as UAM where UAM.user_id = COC.user_id)
                from client_onboarding_client as COC 
                inner join client_onboarding_clientgroup COCG on COCG.id = COC.group_id
                inner join auth_user AU on AU.id = COC.user_id
