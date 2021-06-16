@@ -265,6 +265,14 @@ def client(status, group_id, skip=0, limit=100):
         db_clients = db.session.query(Client).all()
         for db_client in db_clients:
             data.append({"firstName": db_client.firstName})
+
+    if 'export' in request.args and request.args.get('export') == 'true':
+        records = pd.DataFrame(pd.json_normalize(data, sep='_'))
+        records = records.filter(columns_map.keys()).rename(columns=columns_map)
+        resp = make_response(records.to_csv(index=False))
+        resp.headers["Content-Disposition"] = "attachment; filename=export.csv"
+        resp.headers["Content-Type"] = "text/csv"
+        return resp
     return make_response(jsonify(data))
 
 

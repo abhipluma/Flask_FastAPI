@@ -383,4 +383,15 @@ def client(request: Request, status: str, group_id: str, db: Session = Depends(g
     else:
         db_clients = db.query(Client).all()
         data = db_clients
+
+    if 'export' in request.query_params and request.query_params['export'] == 'true':
+        records = pd.DataFrame(pd.json_normalize(data, sep='_'))
+        records = records.filter(columns_map.keys()).rename(columns=columns_map)
+        stream = io.StringIO()
+        records.to_csv(stream, index=False)
+        response = StreamingResponse(iter([stream.getvalue()]),
+                                     media_type="text/csv"
+                                     )
+        response.headers["Content-Disposition"] = "attachment; filename=export.csv"
+        return response
     return data
