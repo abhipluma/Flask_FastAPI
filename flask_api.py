@@ -204,10 +204,11 @@ sql_ordering_keys = {
 def client(status, group_id, skip=0, limit=100):
     data = []
     if 'sql' in request.args:
-        condition = f'''and COC.group_id={group_id}''' if group_id != 'all' else ''''''
-        condition += f'''{status_filter.get(status)}''' if status != 'all' else ''''''
+        condition = f'''and COC.group_id={group_id}''' if group_id != 'all' and group_id.isnumeric() else ''''''
+        condition += f'''{status_filter.get(status)}''' if status != 'all' and status in status_filter else ''''''
         condition += sql_ordering_keys.get(
-            request.args.get('ordering')) if 'ordering' in request.args else ''' order by COC.id desc'''
+            request.args.get('ordering')) if 'ordering' in request.args and \
+            request.args.get('ordering') in sql_ordering_keys else ''' order by COC.id desc'''
 
         sql = text('''
                select COC."id", CONCAT("firstName", "lastName") as "client_name", COC."email" as "client_email",
